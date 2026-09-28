@@ -32,6 +32,7 @@ struct ContentView: View {
                 .background(Color(nsColor: .windowBackgroundColor))
         }
         .frame(minWidth: 1_100, minHeight: 720)
+        .tint(Color(red: 0, green: 0.54, blue: 0))
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 importMenu
@@ -66,6 +67,19 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $store.selection) {
+            Section {
+                HStack(spacing: 10) {
+                    AteaBrandLogo()
+                        .frame(width: 86, height: 28)
+                    Divider()
+                        .frame(height: 24)
+                    Text("upphandling")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.vertical, 5)
+            }
+
             Section("Projekt") {
                 Menu {
                     ForEach(store.projects) { project in
@@ -82,6 +96,13 @@ struct ContentView: View {
                     Divider()
                     Button(action: store.chooseAndCreateProject) {
                         Label("Nytt projekt från mapp…", systemImage: "folder.badge.plus")
+                    }
+                    if let project = store.activeProject {
+                        Button {
+                            store.promptToRenameProject(project)
+                        } label: {
+                            Label("Byt namn på aktivt projekt…", systemImage: "pencil")
+                        }
                     }
                 } label: {
                     HStack(spacing: 11) {
@@ -212,7 +233,7 @@ struct ContentView: View {
             }
         }
         .listStyle(.sidebar)
-        .navigationTitle("Upphandlingsanalys")
+        .navigationTitle("Atea upphandling")
         .safeAreaInset(edge: .bottom) {
             VStack(spacing: 8) {
                 Divider()
@@ -295,6 +316,31 @@ struct ContentView: View {
     }
 }
 
+private struct AteaBrandLogo: View {
+    private var logo: NSImage? {
+        guard let url = Bundle.module.url(forResource: "AteaLogo", withExtension: "svg") else {
+            return nil
+        }
+        return NSImage(contentsOf: url)
+    }
+
+    var body: some View {
+        Group {
+            if let logo {
+                Image(nsImage: logo)
+                    .resizable()
+                    .scaledToFit()
+                    .accessibilityLabel("Atea")
+            } else {
+                Text("ATEA")
+                    .font(.title2.bold())
+                    .tracking(3)
+                    .foregroundStyle(Color(red: 0.45, green: 0.49, blue: 0.52))
+            }
+        }
+    }
+}
+
 private struct NavigationLabel: View {
     let title: String
     let symbol: String
@@ -327,11 +373,15 @@ private struct ProjectsView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
                             HStack(alignment: .bottom) {
-                                PageHeader(
-                                    eyebrow: "ARBETSYTOR",
-                                    title: "Upphandlingsprojekt",
-                                    subtitle: "Håll dokument, krav, produkter och svarsplaner separerade"
-                                )
+                                VStack(alignment: .leading, spacing: 12) {
+                                    AteaBrandLogo()
+                                        .frame(width: 120, height: 34)
+                                    PageHeader(
+                                        eyebrow: "ARBETSYTOR",
+                                        title: "Upphandlingsprojekt",
+                                        subtitle: "Håll dokument, krav, produkter och svarsplaner separerade"
+                                    )
+                                }
                                 Spacer()
                                 Button(action: store.chooseAndCreateProject) {
                                     Label("Nytt projekt från mapp", systemImage: "plus.rectangle.on.folder")
@@ -604,8 +654,22 @@ private struct ProjectHeroCard: View {
                                         .font(.caption.bold())
                                         .tracking(1.4)
                                         .opacity(0.75)
-                                    Text(store.activeProject?.name ?? "Min upphandling")
-                                        .font(.largeTitle.bold())
+                                    HStack(spacing: 9) {
+                                        Text(store.activeProject?.name ?? "Min upphandling")
+                                            .font(.largeTitle.bold())
+                                        if let project = store.activeProject {
+                                            Button {
+                                                store.promptToRenameProject(project)
+                                            } label: {
+                                                Image(systemName: "pencil.circle.fill")
+                                                    .font(.title2)
+                                                    .symbolRenderingMode(.hierarchical)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .foregroundStyle(.white.opacity(0.88))
+                                            .help("Byt namn på projektet")
+                                        }
+                                    }
                                     Text("Fortsätt granska krav, matcha produkter och bygg en komplett svarsplan med spårbara källor.")
                                         .foregroundStyle(.white.opacity(0.82))
                                         .lineLimit(2)

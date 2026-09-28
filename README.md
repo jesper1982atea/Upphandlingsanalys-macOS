@@ -1,4 +1,4 @@
-# Upphandlingsanalys med lokal RAG
+# Atea upphandling
 
 En lokal macOS-app för att läsa stora svenska upphandlingsdokument, skapa en
 spårbar kravlista och söka efter specifika villkor. Dokumenten lämnar inte
@@ -60,7 +60,7 @@ swift test
 ## Installera en GitHub-release
 
 1. Hämta den senaste DMG-filen från repositoryts **Releases**.
-2. Öppna DMG-filen och dra **Upphandlingsanalys** till **Applications**.
+2. Öppna DMG-filen och dra **Atea upphandling** till **Applications**.
 3. Första gången: kontroll-klicka på appen i Finder och välj **Öppna**.
 
 Releasepaketen är för närvarande ad hoc-signerade, inte Developer ID-signerade
@@ -76,3 +76,10 @@ Scripts/package-macos.sh 1.0.0
 
 Skriptet skapar en optimerad release, en macOS-app med ikon, en DMG med
 Applications-genväg, ett ZIP-arkiv och SHA-256-kontrollsummor i `dist/`.
+
+### Atea-logotyp
+
+Appen använder Atea-företagets ordmärke. Atea.se blockerar automatiserad
+hämtning av sidresurser, därför används den identiska offentliga SVG-filen från
+[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Atea_(company)_logo.svg).
+Atea och Atea-logotypen är varumärken som tillhör Atea.

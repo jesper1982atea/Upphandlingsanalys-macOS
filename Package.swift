@@ -32,7 +32,8 @@ let package = Package(
             dependencies: [
                 "ProcurementRAGCore",
                 .product(name: "ZIPFoundation", package: "ZIPFoundation")
-            ]
+            ],
+            resources: [.process("Resources")]
         ),
         .testTarget(
             name: "ProcurementRAGTests",

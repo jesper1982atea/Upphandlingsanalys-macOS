@@ -7,10 +7,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 WORK="$DIST/work"
 APP_NAME="ProcurementRAG"
-DISPLAY_NAME="Upphandlingsanalys"
+DISPLAY_NAME="Atea upphandling"
 APP="$DIST/$DISPLAY_NAME.app"
-DMG="$DIST/Upphandlingsanalys-$VERSION-macOS.dmg"
-ZIP="$DIST/Upphandlingsanalys-$VERSION-macOS.zip"
+DMG="$DIST/Atea-upphandling-$VERSION-macOS.dmg"
+ZIP="$DIST/Atea-upphandling-$VERSION-macOS.zip"
 ICONSET="$WORK/AppIcon.iconset"
 
 cd "$ROOT"
@@ -20,6 +20,11 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$WORK"
 swift build -c release --product "$APP_NAME"
 BIN_DIR="$(swift build -c release --show-bin-path)"
 cp "$BIN_DIR/$APP_NAME" "$APP/Contents/MacOS/$APP_NAME"
+shopt -s nullglob
+for resource_bundle in "$BIN_DIR"/*.bundle; do
+    cp -R "$resource_bundle" "$APP/Contents/Resources/"
+done
+shopt -u nullglob
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -35,7 +40,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>se.jesperandersson.upphandlingsanalys</string>
+    <string>se.atea.upphandling</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
