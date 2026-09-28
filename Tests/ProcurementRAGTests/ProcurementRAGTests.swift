@@ -88,6 +88,11 @@ struct ProcurementRAGTests {
 
     @Test("Project workspaces keep procurements isolated")
     func projectWorkspacePersistence() throws {
+        var responseWorkspace = TenderResponseWorkspace(
+            procurementReference: "2026-1234",
+            organizationName: "Atea Sverige AB"
+        )
+        responseWorkspace.productsVerified = true
         let first = ProcurementProject(
             name: "Upphandling A",
             documents: [
@@ -99,7 +104,8 @@ struct ProcurementRAGTests {
                     pageCount: 4,
                     characterCount: 500
                 )
-            ]
+            ],
+            responseWorkspace: responseWorkspace
         )
         let second = ProcurementProject(name: "Upphandling B")
         let workspace = ProjectWorkspace(projects: [first, second], activeProjectID: second.id)
@@ -109,6 +115,8 @@ struct ProcurementRAGTests {
 
         #expect(decoded.projects.count == 2)
         #expect(decoded.projects[0].documents.first?.name == "krav-a.pdf")
+        #expect(decoded.projects[0].responseWorkspace?.procurementReference == "2026-1234")
+        #expect(decoded.projects[0].responseWorkspace?.productsVerified == true)
         #expect(decoded.projects[1].documents.isEmpty)
         #expect(decoded.activeProjectID == second.id)
     }

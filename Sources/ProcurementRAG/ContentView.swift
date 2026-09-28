@@ -10,6 +10,7 @@ enum AppSection: Hashable {
     case requirements
     case products
     case onlineMatches
+    case tenderWizard
     case responsePlan
     case document(UUID)
 }
@@ -185,6 +186,14 @@ struct ContentView: View {
                 .tag(AppSection.onlineMatches)
 
                 NavigationLabel(
+                    title: "Anbudsguide",
+                    symbol: "wand.and.stars",
+                    tint: .green,
+                    count: store.responseMissingCount
+                )
+                .tag(AppSection.tenderWizard)
+
+                NavigationLabel(
                     title: "Svarsplan",
                     symbol: "doc.badge.arrow.up",
                     tint: .indigo,
@@ -271,6 +280,8 @@ struct ContentView: View {
             ProductsView()
         case .onlineMatches:
             OnlineMatchesView()
+        case .tenderWizard:
+            TenderWizardView()
         case .responsePlan:
             ResponsePlanView()
         case .document(let id):
@@ -678,8 +689,8 @@ private struct ProjectHeroCard: View {
                                 Spacer()
 
                                 VStack(spacing: 9) {
-                                    Button(action: { store.selection = .responsePlan }) {
-                                        Label("Öppna svarsplan", systemImage: "arrow.right")
+                                    Button(action: { store.selection = .tenderWizard }) {
+                                        Label("Starta anbudsguide", systemImage: "wand.and.stars")
                                             .frame(minWidth: 145)
                                     }
                                     .buttonStyle(.borderedProminent)

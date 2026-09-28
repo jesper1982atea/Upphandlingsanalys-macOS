@@ -209,10 +209,23 @@ private struct ResponsePlan {
     let project: ProcurementProject
 
     var blocks: [Block] {
+        let workspace = project.responseWorkspace ?? TenderResponseWorkspace()
         var result: [Block] = [
             .heading("Svarsplan – \(project.name)", 1),
             .paragraph("Genererad \(Date.now.formatted(date: .long, time: .shortened))"),
             .paragraph("Denna plan sammanställer hur anbudsarbetet bör genomföras. Varje krav ska verifieras mot originalkällan innan svaret lämnas."),
+            .heading("Upphandlingsuppgifter", 2),
+            .bullet("Referens: \(value(workspace.procurementReference))"),
+            .bullet("Upphandlande organisation: \(value(workspace.contractingAuthority))"),
+            .bullet("Sista svarsdag: \(value(workspace.submissionDeadline))"),
+            .bullet("Inlämningsportal: \(value(workspace.submissionPortal, required: false))"),
+            .paragraph("Omfattning: \(value(workspace.scopeSummary))"),
+            .heading("Anbudsgivare och ansvar", 2),
+            .bullet("Organisation: \(value(workspace.organizationName)) · \(value(workspace.organizationNumber))"),
+            .bullet("Kontakt: \(value(workspace.contactName)) · \(value(workspace.contactEmail)) · \(value(workspace.contactPhone, required: false))"),
+            .bullet("Anbudsansvarig: \(value(workspace.bidLead))"),
+            .bullet("Pris- och kalkylansvarig: \(value(workspace.pricingOwner))"),
+            .bullet("Juridisk godkännare: \(value(workspace.legalApprover))"),
             .heading("Lägesbild", 2),
             .bullet("\(project.documents.count) dokument och \(project.chunks.count) sökbara avsnitt"),
             .bullet("\(project.requirements.count) identifierade krav, varav \(reviewedCount) granskade"),
@@ -232,6 +245,18 @@ private struct ResponsePlan {
             .bullet("Genomför oberoende kontroll av alla obligatoriska krav och bilagor."),
             .bullet("Kontrollera att priser, reservationer och svar är konsekventa i samtliga dokument."),
             .pageBreak,
+            .heading("Erbjudande och genomförande", 1),
+            .heading("Sammanfattning av erbjudandet", 2),
+            .paragraph(value(workspace.offerSummary)),
+            .heading("Avvikelser och förbehåll", 2),
+            .paragraph(value(workspace.deviations, required: false)),
+            .heading("Leverans- och införandeplan", 2),
+            .paragraph(value(workspace.deliveryPlan)),
+            .heading("Informationssäkerhet och dataskydd", 2),
+            .paragraph(value(workspace.securityResponse)),
+            .heading("Hållbarhet", 2),
+            .paragraph(value(workspace.sustainabilityResponse)),
+            .pageBreak,
             .heading("Krav- och svarsmatris", 1)
         ]
 
@@ -240,12 +265,18 @@ private struct ResponsePlan {
             guard !requirements.isEmpty else { continue }
             result.append(.heading(category.rawValue, 2))
             for (index, requirement) in requirements.enumerated() {
-                result.append(.heading("\(index + 1). \(requirement.isReviewed ? "Granskad" : "Att granska")", 3))
+                let response = workspace.requirementResponses[requirement.id] ?? RequirementResponse()
+                result.append(.heading("\(index + 1). \(response.status.rawValue)", 3))
                 result.append(.paragraph(requirement.text))
                 result.append(.bullet("Källa: \(sourceLabel(requirement))"))
-                if let summary = requirement.aiSummary, !summary.isEmpty {
+                result.append(.bullet("Ansvarig: \(value(response.owner))"))
+                result.append(.bullet("Svar: \(value(response.responseText))"))
+                result.append(.bullet("Bevis/bilaga: \(value(response.evidence))"))
+                if response.responseText.isEmpty,
+                   let summary = requirement.aiSummary,
+                   !summary.isEmpty {
                     result.append(.bullet("Svarsstöd: \(summary)"))
-                } else {
+                } else if response.responseText.isEmpty {
                     result.append(.bullet("Svarsstöd: Beskriv hur kravet uppfylls och bifoga verifierbart bevis."))
                 }
             }
@@ -266,10 +297,12 @@ private struct ResponsePlan {
             result.append(.bullet("\(product.name)\(identifier): \(product.requirements.count) produktspecifika krav, \(product.sheetName) rad \(product.row)"))
         }
         result.append(.heading("Slutlig kontroll", 2))
-        result.append(.bullet("Alla obligatoriska krav är granskade och besvarade utan motsägelser."))
-        result.append(.bullet("Alla hänvisningar går till rätt dokument, sida, blad eller rad."))
-        result.append(.bullet("Produktbevis, priser, leveranstider och giltighetstider är aktuella."))
-        result.append(.bullet("Behörig beslutsfattare har godkänt slutversionen före inlämning."))
+        result.append(.bullet(status(workspace.productsVerified, "Produkter och tjänster är verifierade")))
+        result.append(.bullet(status(workspace.pricingComplete, "Priser och kalkyl är kompletta")))
+        result.append(.bullet(status(workspace.deliveryConfirmed, "Leveranstider och kapacitet är bekräftade")))
+        result.append(.bullet(status(workspace.requiredAttachmentsComplete, "Alla obligatoriska bilagor är bifogade")))
+        result.append(.bullet(status(workspace.legalReviewComplete, "Juridisk granskning är godkänd")))
+        result.append(.bullet(status(workspace.qualityReviewComplete, "Oberoende kvalitetskontroll är genomförd")))
         return result
     }
 
@@ -286,5 +319,17 @@ private struct ResponsePlan {
             return "\(requirement.documentName), sida/blad \(page)"
         }
         return requirement.documentName
+    }
+
+    private func value(_ text: String, required: Bool = true) -> String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return trimmed
+        }
+        return required ? "[SAKNAS – behöver fyllas i]" : "Ej angivet"
+    }
+
+    private func status(_ isComplete: Bool, _ label: String) -> String {
+        "\(isComplete ? "KLAR" : "ÅTERSTÅR") – \(label)"
     }
 }

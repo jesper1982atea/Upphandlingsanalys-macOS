@@ -18,6 +18,8 @@ datorn.
 - Källgrundade svar och kravsammanställningar med Apple Intelligence
 - Individuell Apple Intelligence-förklaring för varje krav med innebörd, leverantörsåtgärder och kontrollpunkter
 - Visuell svarsplan med granskningsgrad, prioriterat arbetsflöde och status per kravtyp
+- Sexstegs anbudsguide som tydligt markerar obligatorisk input och återstående arbete
+- Kravsvar med status, svarstext, verifierbart bevis och namngiven ansvarig
 - Export av komplett svarsplan och kravmatris till riktig Word DOCX och PDF
 - Lokal lagring i Application Support
 
@@ -36,6 +38,21 @@ rekommenderat anbudsflöde. **Exportera DOCX + PDF** skapar:
 - befintliga Apple Intelligence-sammanfattningar som svarsstöd
 - dokument- och produktkontroll
 - checklista för slutlig kvalitetssäkring
+
+### Anbudsguide
+
+**Anbudsguide** leder användaren genom sex steg:
+
+1. upphandlingsreferens, beställare, deadline, portal och omfattning
+2. anbudsgivare, kontaktuppgifter och namngivna ansvariga
+3. bedömning, svar, bevis och ansvarig för varje identifierat krav
+4. erbjudande, produktverifiering, priskontroll och leveranskapacitet
+5. leveransplan, informationssäkerhet och hållbarhet
+6. bilagor, juridisk granskning, oberoende kvalitetskontroll och export
+
+Saknade uppgifter visas i rött på respektive fält och räknas både per steg och
+för hela projektet. Alla svar sparas automatiskt i det aktiva projektet och
+följer med till DOCX- och PDF-exporten.
 
 ## Krav
 

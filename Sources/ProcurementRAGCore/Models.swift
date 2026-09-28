@@ -137,6 +137,7 @@ public struct ProcurementProject: Codable, Identifiable, Hashable, Sendable {
     public var chunks: [DocumentChunk]
     public var requirements: [Requirement]
     public var products: [ProcurementProduct]
+    public var responseWorkspace: TenderResponseWorkspace?
 
     public init(
         id: UUID = UUID(),
@@ -147,7 +148,8 @@ public struct ProcurementProject: Codable, Identifiable, Hashable, Sendable {
         documents: [ProcurementDocument] = [],
         chunks: [DocumentChunk] = [],
         requirements: [Requirement] = [],
-        products: [ProcurementProduct] = []
+        products: [ProcurementProduct] = [],
+        responseWorkspace: TenderResponseWorkspace? = nil
     ) {
         self.id = id
         self.name = name
@@ -158,6 +160,118 @@ public struct ProcurementProject: Codable, Identifiable, Hashable, Sendable {
         self.chunks = chunks
         self.requirements = requirements
         self.products = products
+        self.responseWorkspace = responseWorkspace
+    }
+}
+
+public enum RequirementResponseStatus: String, Codable, CaseIterable, Sendable {
+    case unanswered = "Ej besvarat"
+    case compliant = "Uppfylls"
+    case partial = "Uppfylls med förbehåll"
+    case nonCompliant = "Uppfylls inte"
+}
+
+public struct RequirementResponse: Codable, Hashable, Sendable {
+    public var status: RequirementResponseStatus
+    public var responseText: String
+    public var evidence: String
+    public var owner: String
+
+    public init(
+        status: RequirementResponseStatus = .unanswered,
+        responseText: String = "",
+        evidence: String = "",
+        owner: String = ""
+    ) {
+        self.status = status
+        self.responseText = responseText
+        self.evidence = evidence
+        self.owner = owner
+    }
+}
+
+public struct TenderResponseWorkspace: Codable, Hashable, Sendable {
+    public var currentStep: Int
+    public var procurementReference: String
+    public var contractingAuthority: String
+    public var submissionDeadline: String
+    public var submissionPortal: String
+    public var scopeSummary: String
+    public var organizationName: String
+    public var organizationNumber: String
+    public var contactName: String
+    public var contactEmail: String
+    public var contactPhone: String
+    public var bidLead: String
+    public var pricingOwner: String
+    public var legalApprover: String
+    public var requirementResponses: [UUID: RequirementResponse]
+    public var offerSummary: String
+    public var deviations: String
+    public var productsVerified: Bool
+    public var pricingComplete: Bool
+    public var deliveryConfirmed: Bool
+    public var deliveryPlan: String
+    public var securityResponse: String
+    public var sustainabilityResponse: String
+    public var requiredAttachmentsComplete: Bool
+    public var legalReviewComplete: Bool
+    public var qualityReviewComplete: Bool
+
+    public init(
+        currentStep: Int = 0,
+        procurementReference: String = "",
+        contractingAuthority: String = "",
+        submissionDeadline: String = "",
+        submissionPortal: String = "",
+        scopeSummary: String = "",
+        organizationName: String = "",
+        organizationNumber: String = "",
+        contactName: String = "",
+        contactEmail: String = "",
+        contactPhone: String = "",
+        bidLead: String = "",
+        pricingOwner: String = "",
+        legalApprover: String = "",
+        requirementResponses: [UUID: RequirementResponse] = [:],
+        offerSummary: String = "",
+        deviations: String = "",
+        productsVerified: Bool = false,
+        pricingComplete: Bool = false,
+        deliveryConfirmed: Bool = false,
+        deliveryPlan: String = "",
+        securityResponse: String = "",
+        sustainabilityResponse: String = "",
+        requiredAttachmentsComplete: Bool = false,
+        legalReviewComplete: Bool = false,
+        qualityReviewComplete: Bool = false
+    ) {
+        self.currentStep = currentStep
+        self.procurementReference = procurementReference
+        self.contractingAuthority = contractingAuthority
+        self.submissionDeadline = submissionDeadline
+        self.submissionPortal = submissionPortal
+        self.scopeSummary = scopeSummary
+        self.organizationName = organizationName
+        self.organizationNumber = organizationNumber
+        self.contactName = contactName
+        self.contactEmail = contactEmail
+        self.contactPhone = contactPhone
+        self.bidLead = bidLead
+        self.pricingOwner = pricingOwner
+        self.legalApprover = legalApprover
+        self.requirementResponses = requirementResponses
+        self.offerSummary = offerSummary
+        self.deviations = deviations
+        self.productsVerified = productsVerified
+        self.pricingComplete = pricingComplete
+        self.deliveryConfirmed = deliveryConfirmed
+        self.deliveryPlan = deliveryPlan
+        self.securityResponse = securityResponse
+        self.sustainabilityResponse = sustainabilityResponse
+        self.requiredAttachmentsComplete = requiredAttachmentsComplete
+        self.legalReviewComplete = legalReviewComplete
+        self.qualityReviewComplete = qualityReviewComplete
     }
 }
 

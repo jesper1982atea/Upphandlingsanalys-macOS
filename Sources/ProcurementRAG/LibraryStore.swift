@@ -23,6 +23,7 @@ final class LibraryStore: ObservableObject {
     @Published var requirementReviewFilter = RequirementReviewFilter.all
     @Published var productFilter = ""
     @Published var onlineProductFilter = ""
+    @Published var responseWorkspace = TenderResponseWorkspace()
     @Published private(set) var summarizingRequirementIDs: Set<UUID> = []
     @Published var selectedSourceChunkID: UUID?
     @Published var selectedDocumentPage: Int?
@@ -34,12 +35,53 @@ final class LibraryStore: ObservableObject {
     private let intelligence = AppleIntelligenceService()
     private let responsePlanExporter = ResponsePlanExporter()
     private let persistenceURL: URL
+    private var pendingResponseSave: Task<Void, Never>?
 
     var activeProject: ProcurementProject? {
         guard let activeProjectID else { return nil }
         return currentProjectSnapshot(
             basedOn: projects.first { $0.id == activeProjectID }
         )
+    }
+
+    var unansweredRequirementCount: Int {
+        requirements.filter {
+            let response = responseWorkspace.requirementResponses[$0.id] ?? RequirementResponse()
+            return response.status == .unanswered
+                || response.responseText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || response.evidence.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || response.owner.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }.count
+    }
+
+    var responseMissingCount: Int {
+        var count = 0
+        let requiredTexts = [
+            responseWorkspace.procurementReference,
+            responseWorkspace.contractingAuthority,
+            responseWorkspace.submissionDeadline,
+            responseWorkspace.scopeSummary,
+            responseWorkspace.organizationName,
+            responseWorkspace.organizationNumber,
+            responseWorkspace.contactName,
+            responseWorkspace.contactEmail,
+            responseWorkspace.bidLead,
+            responseWorkspace.pricingOwner,
+            responseWorkspace.legalApprover,
+            responseWorkspace.offerSummary,
+            responseWorkspace.deliveryPlan,
+            responseWorkspace.securityResponse,
+            responseWorkspace.sustainabilityResponse
+        ]
+        count += requiredTexts.filter { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        count += unansweredRequirementCount
+        count += responseWorkspace.productsVerified ? 0 : 1
+        count += responseWorkspace.pricingComplete ? 0 : 1
+        count += responseWorkspace.deliveryConfirmed ? 0 : 1
+        count += responseWorkspace.requiredAttachmentsComplete ? 0 : 1
+        count += responseWorkspace.legalReviewComplete ? 0 : 1
+        count += responseWorkspace.qualityReviewComplete ? 0 : 1
+        return count
     }
 
     init() {
@@ -172,6 +214,32 @@ final class LibraryStore: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    func updateResponseWorkspace(
+        _ update: (inout TenderResponseWorkspace) -> Void
+    ) {
+        update(&responseWorkspace)
+        scheduleResponseSave()
+    }
+
+    func response(for requirementID: UUID) -> RequirementResponse {
+        responseWorkspace.requirementResponses[requirementID] ?? RequirementResponse()
+    }
+
+    func updateResponse(
+        for requirementID: UUID,
+        _ update: (inout RequirementResponse) -> Void
+    ) {
+        var response = response(for: requirementID)
+        update(&response)
+        responseWorkspace.requirementResponses[requirementID] = response
+        scheduleResponseSave()
+    }
+
+    func moveWizard(to step: Int) {
+        responseWorkspace.currentStep = min(max(step, 0), 5)
+        scheduleResponseSave()
     }
 
     func chooseAndImportDocuments() {
@@ -489,6 +557,7 @@ final class LibraryStore: ObservableObject {
         project.chunks = chunks
         project.requirements = requirements
         project.products = products
+        project.responseWorkspace = responseWorkspace
         return project
     }
 
@@ -497,6 +566,7 @@ final class LibraryStore: ObservableObject {
         chunks = project.chunks
         requirements = project.requirements
         products = project.products
+        responseWorkspace = project.responseWorkspace ?? TenderResponseWorkspace()
     }
 
     private func resetTransientState() {
@@ -511,6 +581,19 @@ final class LibraryStore: ObservableObject {
         onlineProductFilter = ""
         selectedSourceChunkID = nil
         selectedDocumentPage = nil
+    }
+
+    private func scheduleResponseSave() {
+        pendingResponseSave?.cancel()
+        pendingResponseSave = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard !Task.isCancelled, let self else { return }
+            do {
+                try self.save()
+            } catch {
+                self.errorMessage = error.localizedDescription
+            }
+        }
     }
 
     private func commonSourceFolder(for documents: [ProcurementDocument]) -> URL? {
