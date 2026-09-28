@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="background" x1="120" y1="80" x2="900" y2="950" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="0.55" stop-color="#4F46E5"/>
+      <stop offset="1" stop-color="#7C3AED"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="310" y1="210" x2="690" y2="790" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E0E7FF"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="30" stdDeviation="28" flood-color="#111827" flood-opacity="0.32"/>
+    </filter>
+  </defs>
+  <rect x="62" y="62" width="900" height="900" rx="205" fill="url(#background)"/>
+  <circle cx="805" cy="230" r="170" fill="#FFFFFF" opacity="0.08"/>
+  <circle cx="205" cy="835" r="235" fill="#FFFFFF" opacity="0.06"/>
+  <g filter="url(#shadow)">
+    <path d="M288 214c0-27 22-49 49-49h265l134 134v426c0 27-22 49-49 49H337c-27 0-49-22-49-49V214z" fill="url(#paper)"/>
+    <path d="M602 165v102c0 28 22 50 50 50h84L602 165z" fill="#C7D2FE"/>
+    <rect x="368" y="368" width="272" height="32" rx="16" fill="#6366F1" opacity="0.9"/>
+    <rect x="368" y="444" width="230" height="28" rx="14" fill="#818CF8" opacity="0.72"/>
+    <rect x="368" y="514" width="178" height="28" rx="14" fill="#A5B4FC" opacity="0.78"/>
+  </g>
+  <g filter="url(#shadow)">
+    <circle cx="667" cy="666" r="143" fill="#111827" opacity="0.92"/>
+    <circle cx="667" cy="666" r="90" fill="none" stroke="#FFFFFF" stroke-width="30"/>
+    <path d="M735 735l114 114" stroke="#FFFFFF" stroke-width="42" stroke-linecap="round"/>
+    <path d="M620 666l31 31 65-72" fill="none" stroke="#67E8F9" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
