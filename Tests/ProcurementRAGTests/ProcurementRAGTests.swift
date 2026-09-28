@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import ProcurementRAG
 @testable import ProcurementRAGCore
 
 @Suite("Procurement RAG")
@@ -83,5 +84,75 @@ struct ProcurementRAGTests {
         #expect(products.first?.details.contains("Pris: 2495") == true)
         #expect(products.first?.sheetName == "Priser")
         #expect(products.first?.row == 2)
+    }
+
+    @Test("Project workspaces keep procurements isolated")
+    func projectWorkspacePersistence() throws {
+        let first = ProcurementProject(
+            name: "Upphandling A",
+            documents: [
+                ProcurementDocument(
+                    id: UUID(),
+                    name: "krav-a.pdf",
+                    sourceURL: URL(fileURLWithPath: "/tmp/krav-a.pdf"),
+                    importedAt: .now,
+                    pageCount: 4,
+                    characterCount: 500
+                )
+            ]
+        )
+        let second = ProcurementProject(name: "Upphandling B")
+        let workspace = ProjectWorkspace(projects: [first, second], activeProjectID: second.id)
+
+        let encoded = try JSONEncoder().encode(workspace)
+        let decoded = try JSONDecoder().decode(ProjectWorkspace.self, from: encoded)
+
+        #expect(decoded.projects.count == 2)
+        #expect(decoded.projects[0].documents.first?.name == "krav-a.pdf")
+        #expect(decoded.projects[1].documents.isEmpty)
+        #expect(decoded.activeProjectID == second.id)
+    }
+
+    @Test("Response plan exports valid DOCX and PDF files")
+    @MainActor
+    func responsePlanExport() throws {
+        let documentID = UUID()
+        let requirement = Requirement(
+            id: UUID(),
+            text: "Leverantören ska redovisa en verifierbar leveransplan.",
+            category: .mandatory,
+            documentID: documentID,
+            documentName: "krav.pdf",
+            page: 3,
+            isReviewed: true,
+            aiSummary: "Beskriv tidplan, ansvar och bevis för varje leveranssteg."
+        )
+        let project = ProcurementProject(
+            name: "Testupphandling",
+            documents: [
+                ProcurementDocument(
+                    id: documentID,
+                    name: "krav.pdf",
+                    sourceURL: URL(fileURLWithPath: "/tmp/krav.pdf"),
+                    importedAt: .now,
+                    pageCount: 5,
+                    characterCount: 1_000
+                )
+            ],
+            requirements: [requirement]
+        )
+        let folder = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ResponsePlanTest-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+
+        let result = try ResponsePlanExporter().export(project: project, to: folder)
+        let docxData = try Data(contentsOf: result.docxURL)
+        let pdfData = try Data(contentsOf: result.pdfURL)
+
+        #expect(docxData.starts(with: Data("PK".utf8)))
+        #expect(pdfData.starts(with: Data("%PDF".utf8)))
+        #expect(docxData.count > 500)
+        #expect(pdfData.count > 1_000)
     }
 }

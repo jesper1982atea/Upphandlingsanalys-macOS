@@ -22,6 +22,11 @@ struct ProcurementRAGApp: App {
         .windowStyle(.titleBar)
         .commands {
             CommandGroup(after: .newItem) {
+                Button("Nytt upphandlingsprojekt…") {
+                    store.chooseAndCreateProject()
+                }
+                .keyboardShortcut("n", modifiers: [.command, .shift])
+
                 Button("Läs in mapp…") {
                     store.chooseAndImportFolder()
                 }
@@ -31,6 +36,14 @@ struct ProcurementRAGApp: App {
                     store.chooseAndImportDocuments()
                 }
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Divider()
+
+                Button("Exportera svarsplan…") {
+                    store.exportResponsePlan()
+                }
+                .keyboardShortcut("e", modifiers: [.command, .shift])
+                .disabled(store.requirements.isEmpty)
             }
         }
     }

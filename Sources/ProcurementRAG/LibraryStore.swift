@@ -6,6 +6,8 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class LibraryStore: ObservableObject {
+    @Published private(set) var projects: [ProcurementProject] = []
+    @Published private(set) var activeProjectID: UUID?
     @Published private(set) var documents: [ProcurementDocument] = []
     @Published private(set) var chunks: [DocumentChunk] = []
     @Published var requirements: [Requirement] = []
@@ -30,7 +32,15 @@ final class LibraryStore: ObservableObject {
     private let processor = DocumentProcessor()
     private let extractor = RequirementExtractor()
     private let intelligence = AppleIntelligenceService()
+    private let responsePlanExporter = ResponsePlanExporter()
     private let persistenceURL: URL
+
+    var activeProject: ProcurementProject? {
+        guard let activeProjectID else { return nil }
+        return currentProjectSnapshot(
+            basedOn: projects.first { $0.id == activeProjectID }
+        )
+    }
 
     init() {
         let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
@@ -39,6 +49,129 @@ final class LibraryStore: ObservableObject {
             .appendingPathComponent("library.json")
         load()
         backfillProductsIfNeeded()
+    }
+
+    func chooseAndCreateProject() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.prompt = "Skapa projekt"
+        panel.message = "Välj upphandlingens huvudmapp. Projektet får samma namn som mappen."
+
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+        createProject(name: folder.lastPathComponent, sourceFolder: folder)
+
+        do {
+            let urls = try supportedDocumentURLs(in: folder)
+            if urls.isEmpty {
+                errorMessage = "Projektet skapades, men mappen innehåller inga dokument som stöds."
+            } else {
+                importDocuments(at: urls)
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func createProject(name: String, sourceFolder: URL? = nil) {
+        persistActiveProjectInMemory()
+        let project = ProcurementProject(name: name, sourceFolder: sourceFolder)
+        projects.append(project)
+        activeProjectID = project.id
+        loadProject(project)
+        selection = .overview
+        try? save()
+    }
+
+    func switchProject(to projectID: UUID) {
+        guard projectID != activeProjectID,
+              let project = projects.first(where: { $0.id == projectID }) else {
+            return
+        }
+        persistActiveProjectInMemory()
+        activeProjectID = projectID
+        loadProject(project)
+        resetTransientState()
+        selection = .overview
+        try? save()
+    }
+
+    func renameActiveProject(to name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, let activeProjectID,
+              let index = projects.firstIndex(where: { $0.id == activeProjectID }) else {
+            return
+        }
+        projects[index].name = trimmed
+        projects[index].updatedAt = .now
+        try? save()
+    }
+
+    func promptToRenameProject(_ project: ProcurementProject) {
+        let field = NSTextField(string: project.name)
+        field.frame = NSRect(x: 0, y: 0, width: 320, height: 24)
+
+        let alert = NSAlert()
+        alert.messageText = "Byt namn på projekt"
+        alert.informativeText = "Namnet används i appen och i exporterade svarsplaner."
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Spara")
+        alert.addButton(withTitle: "Avbryt")
+
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let name = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty,
+              let index = projects.firstIndex(where: { $0.id == project.id }) else {
+            return
+        }
+        projects[index].name = name
+        projects[index].updatedAt = .now
+        try? save()
+    }
+
+    func confirmAndDeleteProject(_ project: ProcurementProject) {
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "Ta bort \(project.name)?"
+        alert.informativeText = "Projektet tas bort från appen. Originalfilerna i mappen påverkas inte."
+        alert.addButton(withTitle: "Ta bort projekt")
+        alert.addButton(withTitle: "Avbryt")
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+        persistActiveProjectInMemory()
+        projects.removeAll { $0.id == project.id }
+        if projects.isEmpty {
+            projects = [ProcurementProject(name: "Min upphandling")]
+        }
+        if project.id == activeProjectID {
+            let replacement = projects[0]
+            activeProjectID = replacement.id
+            loadProject(replacement)
+            resetTransientState()
+            selection = .projects
+        }
+        try? save()
+    }
+
+    func exportResponsePlan() {
+        guard let project = activeProject else { return }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.prompt = "Exportera DOCX och PDF"
+        panel.message = "Välj mapp för svarsplanen i Word- och PDF-format"
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+
+        do {
+            let result = try responsePlanExporter.export(project: project, to: folder)
+            NSWorkspace.shared.activateFileViewerSelecting([result.docxURL, result.pdfURL])
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func chooseAndImportDocuments() {
@@ -290,28 +423,106 @@ final class LibraryStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = try? Data(contentsOf: persistenceURL),
-              let library = try? JSONDecoder().decode(PersistedLibrary.self, from: data) else {
+        guard let data = try? Data(contentsOf: persistenceURL) else {
+            let project = ProcurementProject(name: "Min upphandling")
+            projects = [project]
+            activeProjectID = project.id
             return
         }
-        documents = library.documents
-        chunks = library.chunks
-        requirements = library.requirements
-        products = library.products
+
+        let decoder = JSONDecoder()
+        if let workspace = try? decoder.decode(ProjectWorkspace.self, from: data),
+           !workspace.projects.isEmpty {
+            projects = workspace.projects
+            let selectedID = workspace.activeProjectID.flatMap { id in
+                projects.contains(where: { $0.id == id }) ? id : nil
+            } ?? projects[0].id
+            activeProjectID = selectedID
+            if let project = projects.first(where: { $0.id == selectedID }) {
+                loadProject(project)
+            }
+            return
+        }
+
+        if let library = try? decoder.decode(PersistedLibrary.self, from: data) {
+            let folder = commonSourceFolder(for: library.documents)
+            let project = ProcurementProject(
+                name: folder?.lastPathComponent ?? "Importerad upphandling",
+                sourceFolder: folder,
+                createdAt: library.documents.map(\.importedAt).min() ?? .now,
+                documents: library.documents,
+                chunks: library.chunks,
+                requirements: library.requirements,
+                products: library.products
+            )
+            projects = [project]
+            activeProjectID = project.id
+            loadProject(project)
+            try? save()
+        }
     }
 
     private func save() throws {
+        persistActiveProjectInMemory()
         let folder = persistenceURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let data = try JSONEncoder().encode(
-            PersistedLibrary(
-                documents: documents,
-                chunks: chunks,
-                requirements: requirements,
-                products: products
-            )
+            ProjectWorkspace(projects: projects, activeProjectID: activeProjectID)
         )
         try data.write(to: persistenceURL, options: .atomic)
+    }
+
+    private func persistActiveProjectInMemory() {
+        guard let activeProjectID,
+              let index = projects.firstIndex(where: { $0.id == activeProjectID }) else {
+            return
+        }
+        if let snapshot = currentProjectSnapshot(basedOn: projects[index]) {
+            projects[index] = snapshot
+        }
+    }
+
+    private func currentProjectSnapshot(basedOn project: ProcurementProject?) -> ProcurementProject? {
+        guard var project else { return nil }
+        project.updatedAt = .now
+        project.documents = documents
+        project.chunks = chunks
+        project.requirements = requirements
+        project.products = products
+        return project
+    }
+
+    private func loadProject(_ project: ProcurementProject) {
+        documents = project.documents
+        chunks = project.chunks
+        requirements = project.requirements
+        products = project.products
+    }
+
+    private func resetTransientState() {
+        searchResults = []
+        query = ""
+        generatedAnswer = ""
+        requirementSummary = ""
+        selectedRequirementCategory = nil
+        selectedRequirementDocumentID = nil
+        requirementFilter = ""
+        productFilter = ""
+        onlineProductFilter = ""
+        selectedSourceChunkID = nil
+        selectedDocumentPage = nil
+    }
+
+    private func commonSourceFolder(for documents: [ProcurementDocument]) -> URL? {
+        guard let first = documents.first else { return nil }
+        let folders = documents.map { $0.sourceURL.deletingLastPathComponent().standardizedFileURL }
+        var candidate = first.sourceURL.deletingLastPathComponent().standardizedFileURL
+        while !folders.allSatisfy({ $0.path.hasPrefix(candidate.path) }) {
+            let parent = candidate.deletingLastPathComponent()
+            guard parent.path != candidate.path else { return nil }
+            candidate = parent
+        }
+        return candidate
     }
 
     private func backfillProductsIfNeeded() {

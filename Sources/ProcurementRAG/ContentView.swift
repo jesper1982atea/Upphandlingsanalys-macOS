@@ -4,11 +4,13 @@ import ProcurementRAGCore
 import SwiftUI
 
 enum AppSection: Hashable {
+    case projects
     case overview
     case search
     case requirements
     case products
     case onlineMatches
+    case responsePlan
     case document(UUID)
 }
 
@@ -64,7 +66,65 @@ struct ContentView: View {
 
     private var sidebar: some View {
         List(selection: $store.selection) {
+            Section("Projekt") {
+                Menu {
+                    ForEach(store.projects) { project in
+                        Button {
+                            store.switchProject(to: project.id)
+                        } label: {
+                            if project.id == store.activeProjectID {
+                                Label(project.name, systemImage: "checkmark")
+                            } else {
+                                Text(project.name)
+                            }
+                        }
+                    }
+                    Divider()
+                    Button(action: store.chooseAndCreateProject) {
+                        Label("Nytt projekt från mapp…", systemImage: "folder.badge.plus")
+                    }
+                } label: {
+                    HStack(spacing: 11) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 9)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [.indigo, .blue],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .frame(width: 38, height: 38)
+                            Image(systemName: "briefcase.fill")
+                                .foregroundStyle(.white)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(store.activeProject?.name ?? "Välj projekt")
+                                .font(.headline)
+                                .lineLimit(1)
+                            Text("\(store.documents.count) dokument · \(store.requirements.count) krav")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Image(systemName: "chevron.up.chevron.down")
+                            .font(.caption2.bold())
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+            }
+
             Section {
+                NavigationLabel(
+                    title: "Alla projekt",
+                    symbol: "square.stack.3d.up.fill",
+                    tint: .indigo,
+                    count: store.projects.count
+                )
+                .tag(AppSection.projects)
+
                 NavigationLabel(
                     title: "Översikt",
                     symbol: "square.grid.2x2.fill",
@@ -102,6 +162,14 @@ struct ContentView: View {
                     count: store.products.count
                 )
                 .tag(AppSection.onlineMatches)
+
+                NavigationLabel(
+                    title: "Svarsplan",
+                    symbol: "doc.badge.arrow.up",
+                    tint: .indigo,
+                    count: store.requirements.filter(\.isReviewed).count
+                )
+                .tag(AppSection.responsePlan)
             }
 
             Section {
@@ -149,11 +217,17 @@ struct ContentView: View {
             VStack(spacing: 8) {
                 Divider()
                 Button(action: store.chooseAndImportFolder) {
-                    Label("Läs in upphandlingsmapp", systemImage: "folder.badge.plus")
+                    Label("Lägg till dokument", systemImage: "doc.badge.plus")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .padding(.horizontal, 12)
+                Button(action: store.chooseAndCreateProject) {
+                    Label("Nytt projekt", systemImage: "plus.rectangle.on.folder")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 10)
             }
@@ -164,6 +238,8 @@ struct ContentView: View {
     @ViewBuilder
     private var detail: some View {
         switch store.selection {
+        case .projects:
+            ProjectsView()
         case .overview, .none:
             OverviewView()
         case .search:
@@ -174,6 +250,8 @@ struct ContentView: View {
             ProductsView()
         case .onlineMatches:
             OnlineMatchesView()
+        case .responsePlan:
+            ResponsePlanView()
         case .document(let id):
             if let document = store.documents.first(where: { $0.id == id }) {
                 DocumentDetailView(document: document)
@@ -191,6 +269,14 @@ struct ContentView: View {
             Button(action: store.chooseAndImportDocuments) {
                 Label("Välj enskilda filer…", systemImage: "doc.badge.plus")
             }
+            Divider()
+            Button(action: store.chooseAndCreateProject) {
+                Label("Nytt projekt från mapp…", systemImage: "plus.rectangle.on.folder")
+            }
+            Button(action: store.exportResponsePlan) {
+                Label("Exportera svarsplan…", systemImage: "doc.badge.arrow.up")
+            }
+            .disabled(store.requirements.isEmpty)
         } label: {
             Label("Importera", systemImage: "plus")
         }
@@ -234,6 +320,183 @@ private struct NavigationLabel: View {
     }
 }
 
+private struct ProjectsView: View {
+                @EnvironmentObject private var store: LibraryStore
+
+                var body: some View {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            HStack(alignment: .bottom) {
+                                PageHeader(
+                                    eyebrow: "ARBETSYTOR",
+                                    title: "Upphandlingsprojekt",
+                                    subtitle: "Håll dokument, krav, produkter och svarsplaner separerade"
+                                )
+                                Spacer()
+                                Button(action: store.chooseAndCreateProject) {
+                                    Label("Nytt projekt från mapp", systemImage: "plus.rectangle.on.folder")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.large)
+                            }
+
+                            HStack(spacing: 12) {
+                                MiniMetric(
+                                    value: "\(store.projects.count)",
+                                    label: "Projekt",
+                                    symbol: "briefcase.fill"
+                                )
+                                MiniMetric(
+                                    value: "\(store.projects.reduce(0) { $0 + $1.documents.count })",
+                                    label: "Dokument totalt",
+                                    symbol: "doc.on.doc.fill"
+                                )
+                                MiniMetric(
+                                    value: "\(store.projects.reduce(0) { $0 + $1.requirements.count })",
+                                    label: "Krav totalt",
+                                    symbol: "checklist"
+                                )
+                            }
+
+                            LazyVGrid(
+                                columns: [GridItem(.adaptive(minimum: 340), spacing: 16)],
+                                spacing: 16
+                            ) {
+                                ForEach(store.projects) { project in
+                                    ProjectCard(
+                                        project: project,
+                                        isActive: project.id == store.activeProjectID
+                                    )
+                                }
+                            }
+                        }
+                        .padding(30)
+                    }
+                }
+            }
+
+            private struct ProjectCard: View {
+                @EnvironmentObject private var store: LibraryStore
+                let project: ProcurementProject
+                let isActive: Bool
+
+                private var reviewed: Int {
+                    project.requirements.filter(\.isReviewed).count
+                }
+
+                var body: some View {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HStack(alignment: .top) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 13)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: isActive ? [.indigo, .blue] : [.gray.opacity(0.55), .gray],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        )
+                                    )
+                                    .frame(width: 52, height: 52)
+                                Image(systemName: "briefcase.fill")
+                                    .font(.title2)
+                                    .foregroundStyle(.white)
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(project.name)
+                                    .font(.title3.bold())
+                                    .lineLimit(2)
+                                Text(project.updatedAt, format: .relative(presentation: .named))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            if isActive {
+                                Label("Aktivt", systemImage: "checkmark.circle.fill")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.green)
+                            }
+                        }
+
+                        HStack {
+                            ProjectStat(value: project.documents.count, label: "dokument")
+                            Divider().frame(height: 28)
+                            ProjectStat(value: project.requirements.count, label: "krav")
+                            Divider().frame(height: 28)
+                            ProjectStat(value: project.products.count, label: "produkter")
+                        }
+
+                        if !project.requirements.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack {
+                                    Text("Granskning")
+                                        .font(.caption.bold())
+                                    Spacer()
+                                    Text("\(reviewed)/\(project.requirements.count)")
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(.secondary)
+                                }
+                                ProgressView(value: Double(reviewed), total: Double(project.requirements.count))
+                                    .tint(.indigo)
+                            }
+                        }
+
+                        HStack {
+                            Button(isActive ? "Öppet" : "Öppna") {
+                                store.switchProject(to: project.id)
+                                store.selection = .overview
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(isActive)
+
+                            Button("Byt namn") {
+                                store.promptToRenameProject(project)
+                            }
+                            .buttonStyle(.bordered)
+
+                            Spacer()
+
+                            Menu {
+                                if let folder = project.sourceFolder {
+                                    Button("Visa mapp i Finder") {
+                                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+                                    }
+                                }
+                                Button("Ta bort projekt…", role: .destructive) {
+                                    store.confirmAndDeleteProject(project)
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                            }
+                            .menuStyle(.borderlessButton)
+                        }
+                    }
+                    .padding(18)
+                    .background(.background, in: RoundedRectangle(cornerRadius: 16))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(isActive ? Color.indigo.opacity(0.55) : Color.secondary.opacity(0.16))
+                    }
+                    .shadow(color: isActive ? .indigo.opacity(0.09) : .clear, radius: 12, y: 5)
+                }
+            }
+
+            private struct ProjectStat: View {
+                let value: Int
+                let label: String
+
+                var body: some View {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(value)")
+                            .font(.title3.bold())
+                            .monospacedDigit()
+                        Text(label)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+            }
+
 private struct OverviewView: View {
     @EnvironmentObject private var store: LibraryStore
 
@@ -253,6 +516,8 @@ private struct OverviewView: View {
                 if store.documents.isEmpty {
                     EmptyLibraryView()
                 } else {
+                    ProjectHeroCard()
+
                     LazyVGrid(
                         columns: [GridItem(.adaptive(minimum: 190), spacing: 14)],
                         spacing: 14
@@ -294,7 +559,246 @@ private struct OverviewView: View {
                         )
                     }
 
-                    HStack(alignment: .top, spacing: 18) {
+                    OverviewDocumentPanels()
+                }
+            }
+            .padding(30)
+        }
+    }
+
+    private func categoryCount(_ category: RequirementCategory) -> Int {
+        store.requirements.lazy.filter { $0.category == category }.count
+    }
+}
+
+private struct ProjectHeroCard: View {
+                        @EnvironmentObject private var store: LibraryStore
+
+                        private var progress: Double {
+                            guard !store.requirements.isEmpty else { return 0 }
+                            return Double(store.requirements.filter(\.isReviewed).count)
+                                / Double(store.requirements.count)
+                        }
+
+                        var body: some View {
+                            HStack(spacing: 22) {
+                                ZStack {
+                                    Circle()
+                                        .stroke(.white.opacity(0.2), lineWidth: 9)
+                                    Circle()
+                                        .trim(from: 0, to: progress)
+                                        .stroke(.white, style: StrokeStyle(lineWidth: 9, lineCap: .round))
+                                        .rotationEffect(.degrees(-90))
+                                    VStack(spacing: 0) {
+                                        Text(progress, format: .percent.precision(.fractionLength(0)))
+                                            .font(.title2.bold())
+                                        Text("granskat")
+                                            .font(.caption)
+                                            .opacity(0.8)
+                                    }
+                                }
+                                .frame(width: 106, height: 106)
+
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("AKTIVT PROJEKT")
+                                        .font(.caption.bold())
+                                        .tracking(1.4)
+                                        .opacity(0.75)
+                                    Text(store.activeProject?.name ?? "Min upphandling")
+                                        .font(.largeTitle.bold())
+                                    Text("Fortsätt granska krav, matcha produkter och bygg en komplett svarsplan med spårbara källor.")
+                                        .foregroundStyle(.white.opacity(0.82))
+                                        .lineLimit(2)
+                                }
+
+                                Spacer()
+
+                                VStack(spacing: 9) {
+                                    Button(action: { store.selection = .responsePlan }) {
+                                        Label("Öppna svarsplan", systemImage: "arrow.right")
+                                            .frame(minWidth: 145)
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .tint(.white)
+                                    .foregroundStyle(.indigo)
+
+                                    Button(action: store.exportResponsePlan) {
+                                        Label("Exportera DOCX + PDF", systemImage: "square.and.arrow.up")
+                                            .frame(minWidth: 145)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .tint(.white)
+                                    .disabled(store.requirements.isEmpty)
+                                }
+                            }
+                            .padding(24)
+                            .foregroundStyle(.white)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color(red: 0.20, green: 0.24, blue: 0.72), .indigo, .purple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                in: RoundedRectangle(cornerRadius: 20)
+                            )
+                            .shadow(color: .indigo.opacity(0.18), radius: 20, y: 8)
+                        }
+                    }
+
+                    private struct ResponsePlanView: View {
+                        @EnvironmentObject private var store: LibraryStore
+
+                        private var reviewedCount: Int {
+                            store.requirements.filter(\.isReviewed).count
+                        }
+
+                        private var progress: Double {
+                            guard !store.requirements.isEmpty else { return 0 }
+                            return Double(reviewedCount) / Double(store.requirements.count)
+                        }
+
+                        var body: some View {
+                            ScrollView {
+                                VStack(alignment: .leading, spacing: 24) {
+                                    HStack(alignment: .bottom) {
+                                        PageHeader(
+                                            eyebrow: "ANBUDSARBETE",
+                                            title: "Svarsplan",
+                                            subtitle: "Från kravgranskning till kvalitetssäkrat anbud"
+                                        )
+                                        Spacer()
+                                        Button(action: store.exportResponsePlan) {
+                                            Label("Exportera DOCX + PDF", systemImage: "square.and.arrow.up")
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .controlSize(.large)
+                                        .disabled(store.requirements.isEmpty)
+                                    }
+
+                                    HStack(spacing: 18) {
+                                        VStack(alignment: .leading, spacing: 10) {
+                                            Text("Projektets beredskap")
+                                                .font(.title2.bold())
+                                            Text("\(reviewedCount) av \(store.requirements.count) krav är granskade")
+                                                .foregroundStyle(.secondary)
+                                            ProgressView(value: progress)
+                                                .tint(.indigo)
+                                            Text(progress, format: .percent.precision(.fractionLength(0)))
+                                                .font(.largeTitle.bold())
+                                                .foregroundStyle(.indigo)
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .cardStyle()
+
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            Text("Exporten innehåller")
+                                                .font(.title3.bold())
+                                            PlanFeatureRow(symbol: "list.clipboard.fill", text: "Prioriterad arbetsordning")
+                                            PlanFeatureRow(symbol: "checklist.checked", text: "Krav- och svarsmatris")
+                                            PlanFeatureRow(symbol: "shippingbox.fill", text: "Produkt- och dokumentkontroll")
+                                            PlanFeatureRow(symbol: "checkmark.seal.fill", text: "Slutlig kvalitetskontroll")
+                                        }
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .cardStyle()
+                                    }
+
+                                    SectionTitle(
+                                        "Arbetsflöde",
+                                        subtitle: "Fyra steg för ett komplett och spårbart svar"
+                                    )
+
+                                    LazyVGrid(
+                                        columns: [GridItem(.adaptive(minimum: 230), spacing: 14)],
+                                        spacing: 14
+                                    ) {
+                                        PlanStepCard(number: "01", title: "Kvalificera", text: "Kontrollera formkrav, datum, bilagor och ansvar.")
+                                        PlanStepCard(number: "02", title: "Besvara krav", text: "Granska varje krav och koppla verifierbart bevis.")
+                                        PlanStepCard(number: "03", title: "Säkra erbjudandet", text: "Verifiera produkter, priser, livscykel och leverans.")
+                                        PlanStepCard(number: "04", title: "Kvalitetssäkra", text: "Genomför oberoende kontroll före inlämning.")
+                                    }
+
+                                    SectionTitle(
+                                        "Status per kravtyp",
+                                        subtitle: "Fokusera först på obligatoriska krav"
+                                    )
+
+                                    VStack(spacing: 0) {
+                                        ForEach(RequirementCategory.allCases, id: \.self) { category in
+                                            let requirements = store.requirements.filter { $0.category == category }
+                                            let reviewed = requirements.filter(\.isReviewed).count
+                                            HStack(spacing: 12) {
+                                                Image(systemName: category.symbol)
+                                                    .foregroundStyle(category.tint)
+                                                    .frame(width: 28)
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(category.rawValue)
+                                                        .font(.headline)
+                                                    ProgressView(
+                                                        value: requirements.isEmpty
+                                                            ? 0
+                                                            : Double(reviewed) / Double(requirements.count)
+                                                    )
+                                                    .tint(category.tint)
+                                                }
+                                                Spacer()
+                                                Text("\(reviewed)/\(requirements.count)")
+                                                    .font(.headline.monospacedDigit())
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .padding(16)
+                                            if category != RequirementCategory.allCases.last {
+                                                Divider().padding(.leading, 56)
+                                            }
+                                        }
+                                    }
+                                    .background(.background, in: RoundedRectangle(cornerRadius: 14))
+                                    .overlay {
+                                        RoundedRectangle(cornerRadius: 14).stroke(.quaternary)
+                                    }
+                                }
+                                .padding(30)
+                            }
+                        }
+                    }
+
+                    private struct PlanFeatureRow: View {
+                        let symbol: String
+                        let text: String
+
+                        var body: some View {
+                            Label(text, systemImage: symbol)
+                                .foregroundStyle(.secondary)
+                                .symbolRenderingMode(.hierarchical)
+                        }
+                    }
+
+                    private struct PlanStepCard: View {
+                        let number: String
+                        let title: String
+                        let text: String
+
+                        var body: some View {
+                            VStack(alignment: .leading, spacing: 10) {
+                                Text(number)
+                                    .font(.title.bold())
+                                    .foregroundStyle(.indigo)
+                                Text(title)
+                                    .font(.title3.bold())
+                                Text(text)
+                                    .font(.callout)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 120, alignment: .topLeading)
+                            .cardStyle()
+                        }
+                    }
+
+private struct OverviewDocumentPanels: View {
+    @EnvironmentObject private var store: LibraryStore
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 18) {
                         VStack(alignment: .leading, spacing: 14) {
                             SectionTitle("Krav per dokument", subtitle: "Se var kraven finns")
                             ForEach(store.documents.prefix(8)) { document in
@@ -315,15 +819,7 @@ private struct OverviewView: View {
                             }
                         }
                         .cardStyle()
-                    }
-                }
-            }
-            .padding(30)
         }
-    }
-
-    private func categoryCount(_ category: RequirementCategory) -> Int {
-        store.requirements.lazy.filter { $0.category == category }.count
     }
 }
 

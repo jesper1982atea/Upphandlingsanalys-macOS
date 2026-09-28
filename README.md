@@ -7,6 +7,7 @@ datorn.
 ## Funktioner
 
 - Rekursiv import av hela mappar med PDF-, Excel- (`.xls` och `.xlsx`), TXT- och Markdown-filer
+- Flera separata upphandlingsprojekt med projektväxling, namnbyte och säker borttagning
 - Strukturerad produktlista med artikelnummer, specifikationer, krav, kalkylblad och rad
 - Online-matchning som täcker samtliga produktrader, grupperar identiska behov och skapar kravbaserade sökningar hos Atea, på webben och mot tillverkarkällor
 - Tydlig skillnad mellan automatiska sökunderlag och manuellt källverifierade produktkandidater
@@ -16,7 +17,25 @@ datorn.
 - Filtrering och granskning av obligatoriska krav, utvärderingskrav och avtalskrav
 - Källgrundade svar och kravsammanställningar med Apple Intelligence
 - Individuell Apple Intelligence-förklaring för varje krav med innebörd, leverantörsåtgärder och kontrollpunkter
+- Visuell svarsplan med granskningsgrad, prioriterat arbetsflöde och status per kravtyp
+- Export av komplett svarsplan och kravmatris till riktig Word DOCX och PDF
 - Lokal lagring i Application Support
+
+### Projekt och svarsplaner
+
+Välj **Nytt projekt från mapp** för varje upphandling. Dokument, sökindex,
+krav, produkter och granskningsstatus hålls separerade per projekt. Under
+**Alla projekt** går det att växla, byta namn och ta bort projekt utan att
+originalfilerna påverkas.
+
+Sidan **Svarsplan** visar hur långt granskningen har kommit och ger ett
+rekommenderat anbudsflöde. **Exportera DOCX + PDF** skapar:
+
+- lägesbild och prioriterad arbetsordning
+- krav- och svarsmatris med källhänvisningar
+- befintliga Apple Intelligence-sammanfattningar som svarsstöd
+- dokument- och produktkontroll
+- checklista för slutlig kvalitetssäkring
 
 ## Krav
 

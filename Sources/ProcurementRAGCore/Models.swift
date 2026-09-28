@@ -127,6 +127,50 @@ public struct ProcurementProduct: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
+public struct ProcurementProject: Codable, Identifiable, Hashable, Sendable {
+    public let id: UUID
+    public var name: String
+    public var sourceFolder: URL?
+    public let createdAt: Date
+    public var updatedAt: Date
+    public var documents: [ProcurementDocument]
+    public var chunks: [DocumentChunk]
+    public var requirements: [Requirement]
+    public var products: [ProcurementProduct]
+
+    public init(
+        id: UUID = UUID(),
+        name: String,
+        sourceFolder: URL? = nil,
+        createdAt: Date = .now,
+        updatedAt: Date = .now,
+        documents: [ProcurementDocument] = [],
+        chunks: [DocumentChunk] = [],
+        requirements: [Requirement] = [],
+        products: [ProcurementProduct] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.sourceFolder = sourceFolder
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+        self.documents = documents
+        self.chunks = chunks
+        self.requirements = requirements
+        self.products = products
+    }
+}
+
+public struct ProjectWorkspace: Codable, Sendable {
+    public var projects: [ProcurementProject]
+    public var activeProjectID: UUID?
+
+    public init(projects: [ProcurementProject], activeProjectID: UUID?) {
+        self.projects = projects
+        self.activeProjectID = activeProjectID
+    }
+}
+
 public struct PersistedLibrary: Codable, Sendable {
     public var documents: [ProcurementDocument]
     public var chunks: [DocumentChunk]
