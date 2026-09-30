@@ -4,6 +4,7 @@ import PDFKit
 public enum DocumentProcessingError: LocalizedError {
     case unsupportedFile(URL)
     case unreadableFile(URL)
+    case fileAccessFailed(URL, String)
     case emptyDocument(URL)
 
     public var errorDescription: String? {
@@ -12,6 +13,8 @@ public enum DocumentProcessingError: LocalizedError {
             "Filtypen stöds inte: \(url.lastPathComponent)"
         case .unreadableFile(let url):
             "Kunde inte läsa \(url.lastPathComponent)."
+        case .fileAccessFailed(let url, let reason):
+            "macOS kunde inte ge appen åtkomst till \(url.lastPathComponent): \(reason)"
         case .emptyDocument(let url):
             "Inget läsbart innehåll hittades i \(url.lastPathComponent)."
         }
@@ -25,11 +28,56 @@ public struct DocumentProcessor {
     public init() {}
 
     public func process(url: URL) throws -> (ProcurementDocument, [DocumentChunk]) {
-        let pages = try extractPages(from: url)
+        var output: (ProcurementDocument, [DocumentChunk])?
+        var processingError: Error?
+        var coordinationError: NSError?
+
+        NSFileCoordinator().coordinate(
+            readingItemAt: url,
+            options: [],
+            error: &coordinationError
+        ) { coordinatedURL in
+            do {
+                output = try processReadableFile(at: coordinatedURL, sourceURL: url)
+            } catch {
+                processingError = error
+            }
+        }
+
+        if let processingError {
+            throw processingError
+        }
+        if let coordinationError {
+            throw DocumentProcessingError.fileAccessFailed(
+                url,
+                coordinationError.localizedDescription
+            )
+        }
+        guard let output else {
+            throw DocumentProcessingError.unreadableFile(url)
+        }
+        return output
+    }
+
+    private func processReadableFile(
+        at readableURL: URL,
+        sourceURL: URL
+    ) throws -> (ProcurementDocument, [DocumentChunk]) {
+        do {
+            let handle = try FileHandle(forReadingFrom: readableURL)
+            try handle.close()
+        } catch {
+            throw DocumentProcessingError.fileAccessFailed(
+                sourceURL,
+                error.localizedDescription
+            )
+        }
+
+        let pages = try extractPages(from: readableURL)
         let document = ProcurementDocument(
             id: UUID(),
-            name: url.lastPathComponent,
-            sourceURL: url,
+            name: sourceURL.lastPathComponent,
+            sourceURL: sourceURL,
             importedAt: .now,
             pageCount: pages.count,
             characterCount: pages.reduce(0) { $0 + $1.count }
@@ -48,7 +96,7 @@ public struct DocumentProcessor {
         }
 
         guard !chunks.isEmpty else {
-            throw DocumentProcessingError.emptyDocument(url)
+            throw DocumentProcessingError.emptyDocument(sourceURL)
         }
         return (document, chunks)
     }
@@ -101,7 +149,7 @@ public struct DocumentProcessor {
             }
             return [text]
         case "xls", "xlsx":
-            return try SpreadsheetReader().read(url: url).compactMap { sheet in
+            return try SpreadsheetReader().readCoordinated(url: url).compactMap { sheet in
                 let rows = sheet.rows.compactMap { row -> String? in
                     let values = row.map {
                         $0.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -36,6 +36,7 @@ final class LibraryStore: ObservableObject {
     private let responsePlanExporter = ResponsePlanExporter()
     private let persistenceURL: URL
     private var pendingResponseSave: Task<Void, Never>?
+    private var activeSecurityScopedFolders: [UUID: URL] = [:]
 
     var activeProject: ProcurementProject? {
         guard let activeProjectID else { return nil }
@@ -110,7 +111,7 @@ final class LibraryStore: ObservableObject {
             if urls.isEmpty {
                 errorMessage = "Projektet skapades, men mappen innehåller inga dokument som stöds."
             } else {
-                importDocuments(at: urls)
+                importDocuments(at: urls, securityScopedURLs: [folder])
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -119,7 +120,12 @@ final class LibraryStore: ObservableObject {
 
     func createProject(name: String, sourceFolder: URL? = nil) {
         persistActiveProjectInMemory()
-        let project = ProcurementProject(name: name, sourceFolder: sourceFolder)
+        let bookmark = sourceFolder.flatMap { try? $0.bookmarkData(options: .withSecurityScope) }
+        let project = ProcurementProject(
+            name: name,
+            sourceFolder: sourceFolder,
+            sourceFolderBookmark: bookmark
+        )
         projects.append(project)
         activeProjectID = project.id
         loadProject(project)
@@ -264,7 +270,7 @@ final class LibraryStore: ObservableObject {
         panel.message = "Välj upphandlingsdokument i PDF-, Excel-, TXT- eller Markdown-format"
 
         guard panel.runModal() == .OK else { return }
-        importDocuments(at: panel.urls)
+        importDocuments(at: panel.urls, securityScopedURLs: panel.urls)
     }
 
     func chooseAndImportFolder() {
@@ -284,13 +290,44 @@ final class LibraryStore: ObservableObject {
                 errorMessage = "Mappen innehåller inga PDF-, Excel-, TXT- eller Markdown-filer."
                 return
             }
-            importDocuments(at: urls)
+            importDocuments(at: urls, securityScopedURLs: [folder])
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    func importDocuments(at urls: [URL]) {
+    func reimportActiveProjectFolder() {
+        guard let project = activeProject else { return }
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = false
+        panel.directoryURL = resolvedSourceFolder(for: project)
+        panel.prompt = "Läs in projektmappen igen"
+        panel.message = "Välj projektmappen igen så att macOS ger Atea upphandling åtkomst till OneDrive-filerna."
+        guard panel.runModal() == .OK, let folder = panel.url else { return }
+
+        if let index = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[index].sourceFolder = folder
+            projects[index].sourceFolderBookmark = try? folder.bookmarkData(options: .withSecurityScope)
+        }
+        do {
+            let urls = try supportedDocumentURLs(in: folder)
+            guard !urls.isEmpty else {
+                errorMessage = "Projektmappen innehåller inga PDF-, Excel-, TXT- eller Markdown-filer."
+                return
+            }
+            importDocuments(at: urls, securityScopedURLs: [folder])
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func importDocuments(
+        at urls: [URL],
+        securityScopedURLs: [URL] = []
+    ) {
         if activeProjectID == nil {
             createProject(name: "Min upphandling")
         }
@@ -303,8 +340,12 @@ final class LibraryStore: ObservableObject {
 
         isWorking = true
         errorMessage = nil
+        let accessedURLs = securityScopedURLs.filter { $0.startAccessingSecurityScopedResource() }
 
         Task {
+            defer {
+                accessedURLs.forEach { $0.stopAccessingSecurityScopedResource() }
+            }
             let output = await Task.detached(priority: .userInitiated) {
                 var processed: [(ProcurementDocument, [DocumentChunk], [ProcurementProduct])] = []
                 var failures: [String] = []
@@ -513,6 +554,7 @@ final class LibraryStore: ObservableObject {
         if let workspace = try? decoder.decode(ProjectWorkspace.self, from: data),
            !workspace.projects.isEmpty {
             projects = workspace.projects
+            restoreSecurityScopedFolders()
             let selectedID = workspace.activeProjectID.flatMap { id in
                 projects.contains(where: { $0.id == id }) ? id : nil
             } ?? projects[0].id
@@ -617,6 +659,34 @@ final class LibraryStore: ObservableObject {
             candidate = parent
         }
         return candidate
+    }
+
+    private func restoreSecurityScopedFolders() {
+        for project in projects {
+            guard let bookmark = project.sourceFolderBookmark else { continue }
+            var isStale = false
+            guard let url = try? URL(
+                resolvingBookmarkData: bookmark,
+                options: .withSecurityScope,
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            ) else {
+                continue
+            }
+            if url.startAccessingSecurityScopedResource() {
+                activeSecurityScopedFolders[project.id] = url
+            }
+            if isStale,
+               let index = projects.firstIndex(where: { $0.id == project.id }),
+               let refreshed = try? url.bookmarkData(options: .withSecurityScope) {
+                projects[index].sourceFolder = url
+                projects[index].sourceFolderBookmark = refreshed
+            }
+        }
+    }
+
+    private func resolvedSourceFolder(for project: ProcurementProject) -> URL? {
+        activeSecurityScopedFolders[project.id] ?? project.sourceFolder
     }
 
     private func backfillProductsIfNeeded() {

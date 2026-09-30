@@ -131,6 +131,7 @@ public struct ProcurementProject: Codable, Identifiable, Hashable, Sendable {
     public let id: UUID
     public var name: String
     public var sourceFolder: URL?
+    public var sourceFolderBookmark: Data?
     public let createdAt: Date
     public var updatedAt: Date
     public var documents: [ProcurementDocument]
@@ -143,6 +144,7 @@ public struct ProcurementProject: Codable, Identifiable, Hashable, Sendable {
         id: UUID = UUID(),
         name: String,
         sourceFolder: URL? = nil,
+        sourceFolderBookmark: Data? = nil,
         createdAt: Date = .now,
         updatedAt: Date = .now,
         documents: [ProcurementDocument] = [],
@@ -154,6 +156,7 @@ public struct ProcurementProject: Codable, Identifiable, Hashable, Sendable {
         self.id = id
         self.name = name
         self.sourceFolder = sourceFolder
+        self.sourceFolderBookmark = sourceFolderBookmark
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.documents = documents

@@ -264,8 +264,16 @@ struct ContentView: View {
                 }
                 .buttonStyle(.bordered)
                 .padding(.horizontal, 12)
-                .padding(.bottom, 10)
+                if store.activeProject?.sourceFolder != nil {
+                    Button(action: store.reimportActiveProjectFolder) {
+                        Label("Läs in projektmappen igen", systemImage: "arrow.clockwise")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .padding(.horizontal, 12)
+                }
             }
+            .padding(.bottom, 10)
             .background(.bar)
         }
     }
@@ -518,6 +526,15 @@ private struct ProjectsView: View {
                                 store.promptToRenameProject(project)
                             }
                             .buttonStyle(.bordered)
+
+                            if isActive, project.sourceFolder != nil {
+                                Button {
+                                    store.reimportActiveProjectFolder()
+                                } label: {
+                                    Label("Läs in igen", systemImage: "arrow.clockwise")
+                                }
+                                .buttonStyle(.bordered)
+                            }
 
                             Spacer()
 

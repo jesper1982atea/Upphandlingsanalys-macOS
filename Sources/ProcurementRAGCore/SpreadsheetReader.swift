@@ -16,6 +16,38 @@ public struct SpreadsheetReader {
     public init() {}
 
     public func read(url: URL) throws -> [SpreadsheetSheet] {
+        var output: [SpreadsheetSheet]?
+        var readingError: Error?
+        var coordinationError: NSError?
+
+        NSFileCoordinator().coordinate(
+            readingItemAt: url,
+            options: [],
+            error: &coordinationError
+        ) { coordinatedURL in
+            do {
+                output = try readCoordinated(url: coordinatedURL)
+            } catch {
+                readingError = error
+            }
+        }
+
+        if let readingError {
+            throw readingError
+        }
+        if let coordinationError {
+            throw DocumentProcessingError.fileAccessFailed(
+                url,
+                coordinationError.localizedDescription
+            )
+        }
+        guard let output else {
+            throw DocumentProcessingError.unreadableFile(url)
+        }
+        return output
+    }
+
+    func readCoordinated(url: URL) throws -> [SpreadsheetSheet] {
         switch url.pathExtension.lowercased() {
         case "xlsx":
             return try readXLSX(url: url)
