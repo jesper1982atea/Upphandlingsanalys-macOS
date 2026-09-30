@@ -30,6 +30,10 @@ krav, produkter och granskningsstatus hålls separerade per projekt. Under
 **Alla projekt** går det att växla, byta namn och ta bort projekt utan att
 originalfilerna påverkas.
 
+Varje projektkort har en tydlig röd **Ta bort projekt**-knapp. Borttagningen
+kräver bekräftelse och raderar endast projektets sparade analys i appen;
+originalmappen och dess dokument ligger kvar på datorn.
+
 Sidan **Svarsplan** visar hur långt granskningen har kommit och ger ett
 rekommenderat anbudsflöde. **Exportera DOCX + PDF** skapar:
 

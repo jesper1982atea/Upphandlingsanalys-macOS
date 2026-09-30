@@ -177,20 +177,28 @@ final class LibraryStore: ObservableObject {
         let alert = NSAlert()
         alert.alertStyle = .critical
         alert.messageText = "Ta bort \(project.name)?"
-        alert.informativeText = "Projektet tas bort från appen. Originalfilerna i mappen påverkas inte."
+        alert.informativeText = """
+        Projektet och dess sparade analys, kravsvar och svarsplan tas bort från Atea upphandling.
+
+        Originalfilerna och den valda mappen på datorn raderas inte.
+        """
         alert.addButton(withTitle: "Ta bort projekt")
         alert.addButton(withTitle: "Avbryt")
         guard alert.runModal() == .alertFirstButtonReturn else { return }
 
         persistActiveProjectInMemory()
         projects.removeAll { $0.id == project.id }
-        if projects.isEmpty {
-            projects = [ProcurementProject(name: "Min upphandling")]
-        }
         if project.id == activeProjectID {
-            let replacement = projects[0]
-            activeProjectID = replacement.id
-            loadProject(replacement)
+            activeProjectID = projects.first?.id
+            if let replacement = projects.first {
+                loadProject(replacement)
+            } else {
+                documents = []
+                chunks = []
+                requirements = []
+                products = []
+                responseWorkspace = TenderResponseWorkspace()
+            }
             resetTransientState()
             selection = .projects
         }
@@ -283,6 +291,9 @@ final class LibraryStore: ObservableObject {
     }
 
     func importDocuments(at urls: [URL]) {
+        if activeProjectID == nil {
+            createProject(name: "Min upphandling")
+        }
         let existingPaths = Set(documents.map { $0.sourceURL.standardizedFileURL.path })
         let newURLs = urls.filter { !existingPaths.contains($0.standardizedFileURL.path) }
         guard !newURLs.isEmpty else {

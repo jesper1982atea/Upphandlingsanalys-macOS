@@ -104,6 +104,11 @@ struct ContentView: View {
                         } label: {
                             Label("Byt namn på aktivt projekt…", systemImage: "pencil")
                         }
+                        Button(role: .destructive) {
+                            store.confirmAndDeleteProject(project)
+                        } label: {
+                            Label("Ta bort aktivt projekt…", systemImage: "trash")
+                        }
                     }
                 } label: {
                     HStack(spacing: 11) {
@@ -516,19 +521,23 @@ private struct ProjectsView: View {
 
                             Spacer()
 
-                            Menu {
-                                if let folder = project.sourceFolder {
-                                    Button("Visa mapp i Finder") {
-                                        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
-                                    }
+                            if let folder = project.sourceFolder {
+                                Button {
+                                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folder.path)
+                                } label: {
+                                    Image(systemName: "folder")
                                 }
-                                Button("Ta bort projekt…", role: .destructive) {
-                                    store.confirmAndDeleteProject(project)
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
+                                .buttonStyle(.borderless)
+                                .help("Visa originalmappen i Finder")
                             }
-                            .menuStyle(.borderlessButton)
+
+                            Button(role: .destructive) {
+                                store.confirmAndDeleteProject(project)
+                            } label: {
+                                Label("Ta bort projekt", systemImage: "trash")
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(.red)
                         }
                     }
                     .padding(18)
